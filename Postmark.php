@@ -272,8 +272,9 @@ class Mail_Postmark
 		$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 		
 		if (!$this->_isTwoHundred($httpCode)) {
-			$message = json_decode($return)->Message;
-			throw new Exception("Error while mailing. Postmark returned HTTP code $httpCode with message \"$message\"");
+			$returnObj = json_decode($return);
+			$message = $returnObj->Message;
+			throw new Exception("Error while mailing. Postmark returned HTTP code $httpCode with message \"$message\"", $returnObj->ErrorCode);
 		}
 		
 		return $this;
