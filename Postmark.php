@@ -2,7 +2,7 @@
 
 /**
  * Postmark PHP class
- * 
+ *
  * Copyright 2010, Markus Hedlund, Mimmin AB, www.mimmin.com
  * Licensed under The MIT License
  * Redistributions of files must retain the above copyright notice.
@@ -11,7 +11,7 @@
  * @copyright Copyright 2009, Markus Hedlund, Mimmin AB, www.mimmin.com
  * @version 0.3
  * @license http://www.opensource.org/licenses/mit-license.php The MIT License
- * 
+ *
  * Usage:
  * Mail_Postmark::compose()
  *      ->to('address@example.com', 'Name')
@@ -19,9 +19,9 @@
  *      ->messagePlain('Plaintext message')
  *	    ->tag('Test tag')
  *      ->send();
- * 
+ *
  * or:
- * 
+ *
  * $email = new Mail_Postmark();
  * $email->to('address@example.com', 'Name')
  *      ->subject('Subject')
@@ -29,13 +29,13 @@
  *	    ->tag('Test tag')
  *      ->send();
  */
- 
+
 class Mail_Postmark
 {
 	const DEBUG_OFF = 0;
 	const DEBUG_VERBOSE = 1;
 	const DEBUG_RETURN = 2;
-	
+
 	private $_fromName;
 	private $_fromAddress;
 	private $_tag;
@@ -49,7 +49,8 @@ class Mail_Postmark
 	private $_messagePlain;
 	private $_messageHtml;
 	private $_debugMode = self::DEBUG_OFF;
-	
+	private $_extraHeaders = array();
+
 	/**
 	* Initialize
 	*/
@@ -60,7 +61,7 @@ class Mail_Postmark
 		$this->_default('POSTMARKAPP_API_KEY', null);
 		$this->from(POSTMARKAPP_MAIL_FROM_ADDRESS, POSTMARKAPP_MAIL_FROM_NAME)->messageHtml(null)->messagePlain(null);
 	}
-	
+
 	/**
 	* New e-mail
 	* @return Mail_Postmark
@@ -69,7 +70,7 @@ class Mail_Postmark
 	{
 		return new self();
 	}
-	
+
 	/**
 	* Turns debug output on
 	* @param int $mode One of the debug constants
@@ -80,7 +81,7 @@ class Mail_Postmark
 		$this->_debugMode = $mode;
 		return $this;
 	}
-	
+
 	/**
 	* Specify sender. Overwrites default From.
 	* @param string $address E-mail address used in From
@@ -93,7 +94,7 @@ class Mail_Postmark
 		$this->_fromName = $name;
 		return $this;
 	}
-	
+
 	/**
 	* Specify sender name. Overwrites default From name, but doesn't change address.
 	* @param string $name Name used in From
@@ -107,11 +108,11 @@ class Mail_Postmark
 
 	/**
 	* You can categorize outgoing email using the optional Tag  property.
-	* If you use different tags for the different types of emails your 
+	* If you use different tags for the different types of emails your
 	* application generates, you will be able to get detailed statistics
 	* for them through the Postmark user interface.
 	* Only 1 tag per mail is supported.
-	* 
+	*
 	* @param string $tag One tag
 	* @return Mail_Postmark
 	*/
@@ -120,7 +121,7 @@ class Mail_Postmark
 		$this->_tag = $tag;
 		return $this;
 	}
-	
+
 	/**
 	* Specify receiver
 	* @param string $address E-mail address used in To
@@ -133,7 +134,7 @@ class Mail_Postmark
 		$this->_toName = $name;
 		return $this;
 	}
-	
+
 	/**
 	* Specify reply-to
 	* @param string $address E-mail address used in To
@@ -146,7 +147,7 @@ class Mail_Postmark
 		$this->_replyToName = $name;
 		return $this;
 	}
-	
+
 	/**
 	* Add a CC address
 	* @param string $address E-mail address used in CC
@@ -158,7 +159,7 @@ class Mail_Postmark
 		$this->_cc[] = (is_null($name) ? $address : "$name <$address>");
 		return $this;
 	}
-	
+
 	/**
 	* Add a BCC address
 	* @param string $address E-mail address used in BCC
@@ -170,7 +171,24 @@ class Mail_Postmark
 		$this->_bcc[] = (is_null($name) ? $address : "$name <$address>");
 		return $this;
 	}
-	
+
+	/**
+	* Add extra headers to the message as key-value pairs
+	* @param array $headers An associative array of headers to add
+	* @return Mail_Postmark
+	* @author John Beales - http://johnbeales.com
+	*
+	*/
+	public function &addHeaders($headers)
+	{
+	    foreach($headers as $key => $val) {
+		if(!is_numeric($key)) {	// make sure this was an associative array
+		    $this->_extraHeaders[$key] = $val;
+		}
+	    }
+	    return $this;
+	}
+
 	/**
 	* Specify subject
 	* @param string $subject E-mail subject
@@ -181,7 +199,7 @@ class Mail_Postmark
 		$this->_subject = $subject;
 		return $this;
 	}
-	
+
 	/**
 	* Add plaintext message. Can be used in conjunction with messageHtml()
 	* @param string $message E-mail message
@@ -192,7 +210,7 @@ class Mail_Postmark
 		$this->_messagePlain = $message;
 		return $this;
 	}
-	
+
 	/**
 	* Add HTML message. Can be used in conjunction with messagePlain()
 	* @param string $message E-mail message
@@ -203,7 +221,7 @@ class Mail_Postmark
 		$this->_messageHtml = $message;
 		return $this;
 	}
-	
+
 	/**
 	* Sends the e-mail. Prints debug output if debug mode is turned on
 	* @return Mail_Postmark
@@ -213,50 +231,52 @@ class Mail_Postmark
 		if (is_null(POSTMARKAPP_API_KEY)) {
 			throw new Exception('Postmark API key is not set');
 		}
-		
+
 		if (is_null($this->_fromAddress)) {
 			throw new Exception('From address is not set');
 		}
-		
+
 		if (!isset($this->_toAddress)) {
 			throw new Exception('To address is not set');
 		}
-		
+
 		if (!$this->_validateAddress($this->_fromAddress)) {
 			throw new Exception("Invalid from address '{$this->_fromAddress}'");
 		}
-		
+
 		if (!$this->_validateAddress($this->_toAddress)) {
 			throw new Exception("Invalid to address '{$this->_toAddress}'");
 		}
-		
+
 		if (isset($this->_replyToAddress) && !$this->_validateAddress($this->_replyToAddress)) {
 			throw new Exception("Invalid reply to address '{$this->_replyToAddress}'");
 		}
-		
+
 		if (1 + count($this->_cc) + count($this->_bcc) > 20) {
             throw new Exception("Too many email recipients");
 		}
-		
+
 		$data = $this->_prepareData();
-		$headers = array(
+		 $headers = array(
 			'Accept: application/json',
 			'Content-Type: application/json',
 			'X-Postmark-Server-Token: ' . POSTMARKAPP_API_KEY
 		);
-		
+
+
+
 		$ch = curl_init();
 		curl_setopt($ch, CURLOPT_URL, 'http://api.postmarkapp.com/email');
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 		curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
 		curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
 		curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-		
+
 		$return = curl_exec($ch);
-		
+
 		if ($this->_debugMode == self::DEBUG_VERBOSE) {
 			echo "JSON: " . json_encode($data) . "\nHeaders: \n\t" . implode("\n\t", $headers) . "\nReturn:\n$return";
-		
+
 		} else if ($this->_debugMode == self::DEBUG_RETURN) {
 			return array(
 				'json' => json_encode($data),
@@ -264,22 +284,22 @@ class Mail_Postmark
 				'return' => $return
 			);
 		}
-		
+
 		if (curl_error($ch) != '') {
 			throw new Exception(curl_error($ch));
 		}
-		
+
 		$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-		
+
 		if (!$this->_isTwoHundred($httpCode)) {
 			$returnObj = json_decode($return);
 			$message = $returnObj->Message;
 			throw new Exception("Error while mailing. Postmark returned HTTP code $httpCode with message \"$message\"", $returnObj->ErrorCode);
 		}
-		
+
 		return $this;
 	}
-	
+
 	/**
 	* Prepares the data array
 	*/
@@ -288,14 +308,14 @@ class Mail_Postmark
 		$data = array(
 			'Subject' => $this->_subject
 		);
-		
+
 		$data['From'] = is_null($this->_fromName) ? $this->_fromAddress : "{$this->_fromName} <{$this->_fromAddress}>";
 		$data['To'] = is_null($this->_toName) ? $this->_toAddress : "{$this->_toName} <{$this->_toAddress}>";
-		
+
 		if (!is_null($this->_messageHtml)) {
 			$data['HtmlBody'] = $this->_messageHtml;
 		}
-		
+
 		if (!is_null($this->_messagePlain)) {
 			$data['TextBody'] = $this->_messagePlain;
 		}
@@ -303,22 +323,30 @@ class Mail_Postmark
 		if (!is_null($this->_tag)) {
 			$data['Tag'] = $this->_tag;
 		}
-		
+
 		if (!is_null($this->_replyToAddress)) {
 			$data['ReplyTo'] = is_null($this->_replyToName) ? $this->_replyToAddress : "{$this->_replyToName} <{$this->_replyToAddress}>";
 		}
-		
+
 		if (!empty($this->_cc)) {
             $data['Cc'] = implode(',',$this->_cc);
 		}
-		
+
 		if (!empty($this->_bcc)) {
             $data['Bcc'] = implode(',',$this->_bcc);
 		}
-		
+
+		if(!empty($this->_extraHeaders)) {
+		    $data['Headers'] = array();
+		    foreach($this->_extraHeaders as $headerName => $headerVal) {
+			$data['Headers'][] = array('Name' => $headerName, 'Value' => $headerVal);
+		    }
+
+		}
+
 		return $data;
 	}
-	
+
 	/**
 	* If a number is 200-299
 	*/
@@ -326,7 +354,7 @@ class Mail_Postmark
 	{
 		return intval($value / 100) == 2;
 	}
-	
+
 	/**
 	* Defines a constant, if it isn't defined
 	*/
@@ -336,7 +364,8 @@ class Mail_Postmark
 			define($name, $default);
 		}
 	}
-	
+
+
 	/**
 	* Validates an e-mailadress
 	*/
